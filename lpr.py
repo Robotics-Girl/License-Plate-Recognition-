@@ -49,6 +49,29 @@ def read_training_data(training_directory):
             # each box has a letter written on it and then i loop it 10 times so that way there are 10 different ways to draw the letter
             image_details = imread(image_path, as_gray=True)
             binary_image = image_details < threshold_otsu(image_details)
+            #THIS IS THE NEW ADDED SECTION 
+            labeled = measure.label(binary_image)
+            #this scans the grid and finds every group of true pixels that are touching each other and gives each seperate group its own number 
+            regions = regionprops(labeled)
+            if regions: #if the regions is not an empty list 
+                # if there's noise/specks, keep the largest connected blob
+                largest = max(regions, key=lambda r: r.area)
+                #this is saying out of all the blobs, pick the one with the highest pixel count 
+                #this is going on the idea that the actual letter is almost always the biggest connected blob 
+                y0, x0, y1, x1 = largest.bbox
+                binary_image = binary_image[y0:y1, x0:x1]
+#================================
+#BEFORE:
+# -> The training images were resized to 20 x20 and 9% of the image was on 
+# -> the test images were tightly cropped to the bounding box with region props so the letter fills the whole frame 
+# this is doesn't make any sense because
+#   ->those two were very different imputs 
+#AFTER:
+# -> the fix made it the same kind of image, which allowed the cross-validation to imrpove from around 16% to 60-66%
+
+
+#================================
+            binary_image = resize(binary_image, (20, 20)) > 0.5
             flat_bin_image = binary_image.reshape(-1)
             # this is to change it from a 2d grid to a 1d grid
             # -1 is so that way it figures out the exact size so that way i don't have to automatically calculate it
@@ -60,8 +83,8 @@ def read_training_data(training_directory):
             # this has the actual answer and like the real name and must be in the exact order
     return np.array(image_data), np.array(target_data)
     # we use a numPy array because finding and sorting takes more time using regular lists because python has to check them individually
- 
- 
+
+
 def cross_validation(model, num_of_folds, train_data, train_label):
     # model is the type of model, #number of piles is the number of folds
     # train data is the features in pixels
@@ -82,8 +105,7 @@ def train_and_save_model(current_directory):
     # this saves the two returned arrays into two seperate variables
     # this gives the questions and answers to the data set to learn by making a training data set
     # this is the preparation
- 
-    svc_model = SVC(kernel="linear", probability=True)
+    svc_model = SVC(kernel="linear")
     # linear tells it to try to draw straight lines and probability tells me the condifence scores with the predictions
     cross_validation(svc_model, 4, image_data, target_data)
     # don't need the . because cross_validation is a standalone function not a method that was built into svc_model
